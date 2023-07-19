@@ -73,7 +73,7 @@ func deleteClients(w http.ResponseWriter, r *http.Request, p httprouter.Params) 
 }
 
 func getClients(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	file, err := os.Open("index.txt")
+	file, err := os.Open("/usr/share/easy-rsa/pki/index.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
