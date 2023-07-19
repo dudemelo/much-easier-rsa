@@ -28,20 +28,28 @@ type Client struct {
 	Links   []Link `json:"links"`
 }
 
+type RevokeReason struct {
+	Reason string `json:"reason"`
+}
+
+type CaCert struct {
+	Type string `json:"type"`
+}
+
 func (c Client) withLinks() Client {
 	if c.Revoked != "" {
 		return c
 	}
 	c.Links = []Link{
-		{Rel: "revoke", Method: "DELETE", Path: fmt.Sprintf("/clients/%s/revoke", c.Name)},
+		{Rel: "revoke", Method: "DELETE", Path: fmt.Sprintf("/clients/%s", c.Name)},
 	}
 	return c
 }
 
 func main() {
 	r := httprouter.New()
-	r.POST("/ca-certs/common", postCommonCACert)
-	r.POST("/ca-certs/org", postOrgCACert)
+	r.GET("/", index)
+	r.POST("/ca-certs", postCACert)
 	r.POST("/servers/:name", postServers)
 	r.POST("/clients/:name", postClients)
 	r.DELETE("/clients/:name", deleteClients)
@@ -49,12 +57,23 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
-func postCommonCACert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	// ...
+func index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	http.ServeFile(w, r, "/var/www/index.html")
 }
 
-func postOrgCACert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	// ...
+func postCACert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	if _, err := os.Stat("/usr/share/easy-rsa/pki/ca.crt"); err == nil {
+		w.WriteHeader(http.StatusConflict)
+		return
+	}
+	var cert CaCert
+	json.NewDecoder(r.Body).Decode(&cert)
+	if cert.Type == "common" {
+		exec.Command("/usr/share/easy-rsa/easyrsa", "build-ca", "nopass").Run()
+		w.WriteHeader(http.StatusCreated)
+		return
+	}
+	w.WriteHeader(http.StatusNotImplemented)
 }
 
 func postServers(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -68,7 +87,9 @@ func postClients(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 }
 
 func deleteClients(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	exec.Command("/usr/share/easy-rsa/easyrsa", "revoke", p.ByName("name"), "nopass").Run()
+	var reason RevokeReason
+	json.NewDecoder(r.Body).Decode(&reason)
+	exec.Command("/usr/share/easy-rsa/easyrsa", "revoke", p.ByName("name"), reason.Reason).Run()
 	getClients(w, r, p)
 }
 

@@ -15,13 +15,13 @@ ENV EASYRSA_BATCH=1
 WORKDIR /usr/share/easy-rsa
 
 COPY --from=builder /go/src/app/app /usr/bin/app
+COPY --from=builder /go/src/app/index.html /var/www/index.html
 
 RUN set -ex \
     # for debugging
     && apk add --no-cache vim \
     && apk add --no-cache easy-rsa \
-    && ./easyrsa init-pki \
-    && ./easyrsa build-ca nopass
+    && ./easyrsa init-pki
 
 CMD ["app"]
     
